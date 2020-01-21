@@ -78,7 +78,7 @@ namespace IngameScript
 		//Connectors - Exports into connected connector.
 		List<ExternalExportDefinition> ExternalExporter;
 
-		IMyTextSurface surface; //Used for calculating text width;
+		IMyTextSurface surface; //Used for calculating text width and displaying the terminal;
 
 		//Strings for printing Echo, gets padding by EqualTextPadding()
 		readonly string[] defaultCategoryStrings = new string[]
@@ -106,6 +106,10 @@ namespace IngameScript
 			};
 
 			surface = (Me as IMyTextSurfaceProvider).GetSurface(0);
+			if(surface != null)
+			{
+				surface.ContentType = VRage.Game.GUI.TextPanel.ContentType.TEXT_AND_IMAGE;
+			}
 		}
 
 		void Init()
@@ -287,7 +291,7 @@ namespace IngameScript
 					RunStateMachine = null;
 				}
 			}
-			DetailedInfo();
+			TextOutput();
 		}
 
 		private IEnumerator<bool> Run()
@@ -574,12 +578,14 @@ namespace IngameScript
 			return false;
 		}
 
-		void DetailedInfo()
+		void TextOutput()
 		{
-			//Print errors
+			StringBuilder text = new StringBuilder();
+
+
 			if (SetupMessages.Count > 0)
 			{
-				Echo("\n== Setup messages ==");
+				text.AppendLine("\n== Setup messages ==");
 				for (int i = 0; i < SetupMessages.Count; i++)
 				{
 					Echo(i + ". " + SetupMessages[i]);
@@ -587,33 +593,41 @@ namespace IngameScript
 			}
 			if (ErrorsShow != 0)
 			{
-				Echo("\n== Runtime messages ==");
+				text.AppendLine("\n== Runtime messages ==");
 				foreach (var entry in RunningErrorMessages)
 				{
 					if ((ErrorsShow & entry.Key) != 0)
 					{
-						Echo(entry.Value);
+						text.AppendLine(entry.Value);
 					}
 				}
 			}
 			if (BlocksMissingInventoryShow.Count > 0)
 			{
-				Echo("\n== Inaccessible inventory ==\nBlock missing?");
+				text.AppendLine("\n== Inaccessible inventory ==\nBlock missing?");
 				foreach (var name in BlocksMissingInventoryShow)
 				{
-					Echo("• " + name);
+					text.AppendLine("• " + name);
 				}
 			}
 
 			var categories = EqualTextPadding(categoryStrings, surface, ' ', 5);
-			Echo("\n== Monitored inventroies ==");
-			Echo($"{categories[0]}{(FillLevel.Ingots.Y == 0 ? "--" : FillLevel.Ingots.Z.ToString("n0"))}%");
-			Echo($"{categories[1]}{(FillLevel.Components.Y == 0 ? "--" : FillLevel.Components.Z.ToString("n0"))}%");
-			Echo($"{categories[2]}{(FillLevel.Ores.Y == 0 ? "--" : FillLevel.Ores.Z.ToString("n0"))}%");
-			Echo($"{categories[3]}{(FillLevel.Tools.Y == 0 ? "--" : FillLevel.Tools.Z.ToString("n0"))}%");
-			Echo($"{categories[4]}{(FillLevel.Empty.Y == 0 ? "--" : FillLevel.Empty.Z.ToString("n0"))}%");
-
-			Echo("\n== Usage ==\nAdd " + TAG + "xxx to a block's name\nwhere xxx is one of the invnetory\ntypes from above. Recompile.");
+			text.AppendLine("\n== Monitored inventroies ==");
+			text.AppendLine($"{categories[0]}{(FillLevel.Ingots.Y == 0 ? "--" : FillLevel.Ingots.Z.ToString("n0"))}%");
+			text.AppendLine($"{categories[1]}{(FillLevel.Components.Y == 0 ? "--" : FillLevel.Components.Z.ToString("n0"))}%");
+			text.AppendLine($"{categories[2]}{(FillLevel.Ores.Y == 0 ? "--" : FillLevel.Ores.Z.ToString("n0"))}%");
+			text.AppendLine($"{categories[3]}{(FillLevel.Tools.Y == 0 ? "--" : FillLevel.Tools.Z.ToString("n0"))}%");
+			text.AppendLine($"{categories[4]}{(FillLevel.Empty.Y == 0 ? "--" : FillLevel.Empty.Z.ToString("n0"))}%");
+			
+			//Print to screen
+			if (surface != null)
+			{
+				surface.WriteText(text);
+			}
+			
+			//Add usage instructions before printing to terminal
+			text.AppendLine("\n== Usage ==\nAdd " + TAG + "xxx to a block's name\nwhere xxx is one of the invnetory\ntypes from above. Recompile.");
+			Echo(text.ToString());
 		}
 
 

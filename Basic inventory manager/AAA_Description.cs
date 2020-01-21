@@ -7,7 +7,7 @@ namespace IngameScript
 		#region untouched
 /*
 Blargmode's Basic Inventory Manager (BIM)
-Version 0.0.3 (2019-05-11)
+Version 0.0.4 (2020-01-21)
 
 
 // Forewords \\__________________________________________________
