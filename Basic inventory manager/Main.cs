@@ -428,7 +428,7 @@ namespace IngameScript
 			var items = new List<MyInventoryItem>();
 			inv.GetItems(items);
 			var itemsSorted = items.Distinct().OrderBy(q => q.Type.SubtypeId).ToList(); //Sort alphabetically and remove dupes.
-
+			/*
 			//Checkas all items in slots >= current slot, for each slot. Sorts and removes dupes.
 			for (int i = 0; i < itemsSorted.Count; i++)
 			{
@@ -457,6 +457,7 @@ namespace IngameScript
 					}
 				}
 			}
+			*/
 			return new Vector3((float)inv.CurrentVolume, (float)inv.MaxVolume, 0);
 		}
 
