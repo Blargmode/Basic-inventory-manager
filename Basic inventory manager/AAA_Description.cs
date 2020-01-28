@@ -72,7 +72,7 @@ namespace IngameScript
 		// Setting \\__________________________________________________
 		You can change the tag.
 		*/
-		const string TAG = "BIM:";
+		public const string TAG = "BIM:";
 /*
 But don't touch anything beyond this point.
 Fly safe!

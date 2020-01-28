@@ -44,7 +44,7 @@ namespace IngameScript
 		IEnumerator<bool> RunStateMachine;
 
 		[Flags]
-		enum RunningError
+		public enum RunningError
 		{
 			IngotExportFailed = 0,
 			ComponentExportFailed = 1,
@@ -52,7 +52,7 @@ namespace IngameScript
 			ToolExportFailed = 4,
 		};
 
-		struct TypeFillData
+		public struct TypeFillData
 		{
 			//amount, total, percent
 			public Vector3 Ingots;
@@ -68,44 +68,30 @@ namespace IngameScript
 			public List<IMyTerminalBlock> exportFrom;
 		}
 
-		TypeFillData FillLevel;
+		public TypeFillData FillLevel;
 
 		AssemblerManager Assemblers;
 		
 		RunningError Errors = 0;
-		RunningError ErrorsShow = 0; //Used for displaying purposes, Only updated once everything has been worked through
-		Dictionary<RunningError, string> RunningErrorMessages;
+		public RunningError ErrorsShow = 0; //Used for displaying purposes, Only updated once everything has been worked through
+		public Dictionary<RunningError, string> RunningErrorMessages;
 
-		List<string>  SetupMessages = new List<string>();
-		HashSet<string> BlocksMissingInventory = new HashSet<string>();
-		List<string> BlocksMissingInventoryShow = new List<string>();
+		public List<string>  SetupMessages = new List<string>();
+		public HashSet<string> BlocksMissingInventory = new HashSet<string>();
+		public List<string> BlocksMissingInventoryShow = new List<string>();
 
 		//Any inventory
-		List<IMyTerminalBlock> Ingots;
-		List<IMyTerminalBlock> Components;
-		List<IMyTerminalBlock> Ores;
-		List<IMyTerminalBlock> Tools;
-		List<IMyTerminalBlock> Empty;
+		public List<IMyTerminalBlock> Ingots;
+		public List<IMyTerminalBlock> Components;
+		public List<IMyTerminalBlock> Ores;
+		public List<IMyTerminalBlock> Tools;
+		public List<IMyTerminalBlock> Empty;
 
 		//Connectors - Exports into connected connector.
 		List<ExternalExportDefinition> ExternalExporter;
-		
-		
 
-		IMyTextSurface surface; //Used for calculating text width and displaying the terminal;
+		DisplayManager Display;
 
-		//Strings for printing Echo, gets padding by EqualTextPadding()
-		readonly string[] defaultCategoryStrings = new string[]
-		{
-			"Ingots:",
-			"Components:",
-			"Ores:",
-			"Tools:",
-			"Empty:"
-		};
-
-		//These get modyfied in Init()
-		string[] categoryStrings;
 
 		public Program()
 		{
@@ -118,14 +104,8 @@ namespace IngameScript
 				{ RunningError.OreExportFailed, "Not enough container space for ores." },
 				{ RunningError.ToolExportFailed, "Not enough container space for tools/misc." }
 			};
-
 			
-
-			surface = (Me as IMyTextSurfaceProvider).GetSurface(0);
-			if(surface != null)
-			{
-				surface.ContentType = VRage.Game.GUI.TextPanel.ContentType.TEXT_AND_IMAGE;
-			}
+			Display = new DisplayManager(this);
 		}
 
 		void Init()
@@ -142,23 +122,32 @@ namespace IngameScript
 
 			List<IMyAssembler> assemblers = new List<IMyAssembler>();
 
+			Display.ResetDisplayList();
+
 			var allBlocks = new List<IMyTerminalBlock>();
 			GridTerminalSystem.GetBlocksOfType(allBlocks, x => x.IsSameConstructAs(Me));
 			
 			foreach (var block in allBlocks)
 			{
-				if(block.InventoryCount > 0)
+				if(block.InventoryCount > 0 || block is IMyTextSurfaceProvider)
 				{
 					if(block is IMyAssembler)
 					{
 						assemblers.Add(block as IMyAssembler);
 					}
 
-					int index = block.CustomName.IndexOf(TAG);
-					if(index >= 0)
+					int indexOfTag = block.CustomName.IndexOf(TAG);
+					if(indexOfTag >= 0)
 					{
-						string part = block.CustomName.Substring(index + TAG.Length);
+						string part = block.CustomName.Substring(indexOfTag + TAG.Length);
 						part = part.Split(' ')[0];
+
+						//Find and remove potential screen index designation.
+						int indexOfAt = part.IndexOf("@");
+						if(indexOfAt != -1)
+						{
+							part = part.Substring(0, part.Length - (part.Length - indexOfAt));
+						}
 
 						switch (part.ToLower())
 						{
@@ -276,6 +265,16 @@ namespace IngameScript
 								}
 								break;
 
+							case "display":
+							case "screen":
+							case "show":
+							case "lcd":
+								if (!Display.AddDisplay(block, indexOfAt))
+								{
+									SetupMessages.Add("Block has no accesible LCDs. (@'" + block.CustomName + "')");
+								}
+								break;
+
 							default:
 								SetupMessages.Add("Option '" + part + "' wasn't understood. (@'" + block.CustomName + "')");
 								break;
@@ -289,13 +288,6 @@ namespace IngameScript
 			{
 				Assemblers = new AssemblerManager(Me, assemblers);
 			}
-
-			categoryStrings = EqualTextPadding(defaultCategoryStrings, (Me as IMyTextSurfaceProvider).GetSurface(0), ' ', 10);
-			categoryStrings[0] += "(" + Ingots.Count + ")";
-			categoryStrings[1] += "(" + Components.Count + ")";
-			categoryStrings[2] += "(" + Ores.Count + ")";
-			categoryStrings[3] += "(" + Tools.Count + ")";
-			categoryStrings[4] += "(" + Empty.Count + ")";
 
 			initialized = true;
 			RunStateMachine = Run();
@@ -319,7 +311,7 @@ namespace IngameScript
 					RunStateMachine = null;
 				}
 			}
-			TextOutput();
+			Display.Update();
 		}
 
 		private IEnumerator<bool> Run()
@@ -650,101 +642,7 @@ namespace IngameScript
 			}
 			return false;
 		}
-		
-		void TextOutput()
-		{
-			StringBuilder text = new StringBuilder();
-
-
-			if (SetupMessages.Count > 0)
-			{
-				text.AppendLine("\n== Setup messages ==");
-				for (int i = 0; i < SetupMessages.Count; i++)
-				{
-					Echo(i + ". " + SetupMessages[i]);
-				}
-			}
-			if (ErrorsShow != 0)
-			{
-				text.AppendLine("\n== Runtime messages ==");
-				foreach (var entry in RunningErrorMessages)
-				{
-					if ((ErrorsShow & entry.Key) != 0)
-					{
-						text.AppendLine(entry.Value);
-					}
-				}
-			}
-			if (BlocksMissingInventoryShow.Count > 0)
-			{
-				text.AppendLine("\n== Inaccessible inventory ==\nBlock missing?");
-				foreach (var name in BlocksMissingInventoryShow)
-				{
-					text.AppendLine("• " + name);
-				}
-			}
-
-			var categories = EqualTextPadding(categoryStrings, surface, ' ', 5);
-			text.AppendLine("\n== Monitored inventroies ==");
-			text.AppendLine($"{categories[0]}{(FillLevel.Ingots.Y == 0 ? "--" : FillLevel.Ingots.Z.ToString("n0"))}%");
-			text.AppendLine($"{categories[1]}{(FillLevel.Components.Y == 0 ? "--" : FillLevel.Components.Z.ToString("n0"))}%");
-			text.AppendLine($"{categories[2]}{(FillLevel.Ores.Y == 0 ? "--" : FillLevel.Ores.Z.ToString("n0"))}%");
-			text.AppendLine($"{categories[3]}{(FillLevel.Tools.Y == 0 ? "--" : FillLevel.Tools.Z.ToString("n0"))}%");
-			text.AppendLine($"{categories[4]}{(FillLevel.Empty.Y == 0 ? "--" : FillLevel.Empty.Z.ToString("n0"))}%");
-			
-			//Print to screen
-			if (surface != null)
-			{
-				surface.WriteText(text);
-			}
-			
-			//Add usage instructions before printing to terminal
-			text.AppendLine("\n== Usage ==\nAdd " + TAG + "xxx to a block's name\nwhere xxx is one of the invnetory\ntypes from above. Recompile.");
-			Echo(text.ToString());
-		}
-
-
-		// Calculate and add padding for nicely alinged lists
-		// - One: 1
-		// - Two: 2
-		// - Threee: 3
-		// Becomes:
-		// - One:    1
-		// - Two:    2
-		// - Threee: 3
-		// Roughly.
-		string[] EqualTextPadding(string[] strings, IMyTextSurface dummySurface, char padding = ' ', int extraPadding = 0)
-		{
-			//Calculate pixel lengths and find longest string 
-			string[] output = new string[strings.Length];
-			float[] lengths = new float[strings.Length];
-			int longestStringIndex = 0;
-			float longestStringLength = float.MinValue;
-			for (int i = 0; i < strings.Length; i++)
-			{
-				lengths[i] = dummySurface.MeasureStringInPixels(new StringBuilder(strings[i]), "Debug", 1).X;
-				if (lengths[i] > longestStringLength)
-				{
-					longestStringIndex = i;
-					longestStringLength = lengths[i];
-				}
-			}
-
-			float spaceLength = dummySurface.MeasureStringInPixels(new StringBuilder(padding.ToString()), "Debug", 1).X;
-			
-			for (int i = 0; i < strings.Length; i++)
-			{
-				output[i] = strings[i] + new string(padding, (int)((lengths[longestStringIndex] - lengths[i]) / spaceLength) + extraPadding);
-			}
-
-			return output;
-		}
-
-		
-
-		
-
-		
+				
 		#endregion
 		#region post-script
 	}
