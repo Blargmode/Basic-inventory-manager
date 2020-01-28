@@ -1,20 +1,21 @@
 ﻿#region pre-script
-using System;
+using Sandbox.Game.EntityComponents;
+using Sandbox.ModAPI.Ingame;
+using Sandbox.ModAPI.Interfaces;
+using SpaceEngineers.Game.ModAPI.Ingame;
+using System.Collections.Generic;
+using System.Collections;
 using System.Linq;
 using System.Text;
-using System.Collections;
-using System.Collections.Generic;
-
-using VRageMath;
-using VRage.Game;
+using System;
 using VRage.Collections;
-using Sandbox.ModAPI.Ingame;
 using VRage.Game.Components;
+using VRage.Game.GUI.TextPanel;
 using VRage.Game.ModAPI.Ingame;
-using Sandbox.ModAPI.Interfaces;
-using Sandbox.Game.EntityComponents;
-using SpaceEngineers.Game.ModAPI.Ingame;
+using VRage.Game.ModAPI.Ingame.Utilities;
 using VRage.Game.ObjectBuilders.Definitions;
+using VRage.Game;
+using VRageMath;
 namespace IngameScript
 {
 	public partial class Program : MyGridProgram
@@ -27,6 +28,15 @@ namespace IngameScript
 		//MAYBE: More than one type per container
 
 		//BUG: Removed block causes crash
+
+		//MAYBE: BIM:Limit
+		//A special tag for greedy turrets and reactors. 
+		//It doesn't do any of the normal inventory stuff, it just
+		//Turns off "use conveyor system" once a resonalble amount of
+		//items has been reached, and turns it on again once the amount
+		//Goes below that value.
+		//Maybe this should be a setting rather than a tag.
+		//Annoying to tag all the things.
 		
 
 		bool initialized = false;
@@ -60,6 +70,8 @@ namespace IngameScript
 
 		TypeFillData FillLevel;
 
+		AssemblerManager Assemblers;
+		
 		RunningError Errors = 0;
 		RunningError ErrorsShow = 0; //Used for displaying purposes, Only updated once everything has been worked through
 		Dictionary<RunningError, string> RunningErrorMessages;
@@ -77,6 +89,8 @@ namespace IngameScript
 
 		//Connectors - Exports into connected connector.
 		List<ExternalExportDefinition> ExternalExporter;
+		
+		
 
 		IMyTextSurface surface; //Used for calculating text width and displaying the terminal;
 
@@ -105,6 +119,8 @@ namespace IngameScript
 				{ RunningError.ToolExportFailed, "Not enough container space for tools/misc." }
 			};
 
+			
+
 			surface = (Me as IMyTextSurfaceProvider).GetSurface(0);
 			if(surface != null)
 			{
@@ -124,13 +140,20 @@ namespace IngameScript
 
 			ExternalExporter = new List<ExternalExportDefinition>();
 
+			List<IMyAssembler> assemblers = new List<IMyAssembler>();
+
 			var allBlocks = new List<IMyTerminalBlock>();
 			GridTerminalSystem.GetBlocksOfType(allBlocks, x => x.IsSameConstructAs(Me));
-
+			
 			foreach (var block in allBlocks)
 			{
 				if(block.InventoryCount > 0)
 				{
+					if(block is IMyAssembler)
+					{
+						assemblers.Add(block as IMyAssembler);
+					}
+
 					int index = block.CustomName.IndexOf(TAG);
 					if(index >= 0)
 					{
@@ -262,6 +285,11 @@ namespace IngameScript
 				}
 			}
 
+			if (assemblers.Count > 0)
+			{
+				Assemblers = new AssemblerManager(Me, assemblers);
+			}
+
 			categoryStrings = EqualTextPadding(defaultCategoryStrings, (Me as IMyTextSurfaceProvider).GetSurface(0), ' ', 10);
 			categoryStrings[0] += "(" + Ingots.Count + ")";
 			categoryStrings[1] += "(" + Components.Count + ")";
@@ -341,37 +369,43 @@ namespace IngameScript
 					yield return true;
 				}
 
-				//Step 2. Organise within (Alphabetical etc)
+
+				//Step 2. Check what's in the inventory
 
 				TypeFillData fill = new TypeFillData();
+				Dictionary<MyDefinitionId, VRage.MyFixedPoint> data = new Dictionary<MyDefinitionId, VRage.MyFixedPoint>();
 
 				foreach (var block in Ingots)
 				{
-					fill.Ingots += SortInventory(block);
+					fill.Ingots += GetFillLevel(block);
 					yield return true;
 				}
 
 				foreach (var block in Ores)
 				{
-					fill.Ores += SortInventory(block);
+					fill.Ores += GetFillLevel(block);
 					yield return true;
 				}
 
 				foreach (var block in Components)
 				{
-					fill.Components += SortInventory(block);
+					if (Assemblers != null)
+					{
+						Assemblers.CalculateAssemblableCount(block, data);
+					}	
+					fill.Components += GetFillLevel(block);
 					yield return true;
 				}
 
 				foreach (var block in Tools)
 				{
-					fill.Tools += SortInventory(block);
+					fill.Tools += GetFillLevel(block);
 					yield return true;
 				}
 
 				foreach (var block in Empty)
 				{
-					fill.Empty += SortInventory(block);
+					fill.Empty += GetFillLevel(block);
 					yield return true;
 				}
 
@@ -379,6 +413,15 @@ namespace IngameScript
 				fill.Components.Z = fill.Components.X / fill.Components.Y * 100; //Percent = Amount / Total
 				fill.Ores.Z = fill.Ores.X / fill.Ores.Y * 100; //Percent = Amount / Total
 				fill.Tools.Z = fill.Tools.X / fill.Tools.Y * 100; //Percent = Amount / Total
+				
+
+				//Step 3. Tell assemblers to assemble or dissasemmble as needed. 
+
+				if(Assemblers != null)
+				{
+					Assemblers.Update(data);
+				}
+
 
 				ErrorsShow = Errors;
 				BlocksMissingInventoryShow = BlocksMissingInventory.ToList();
@@ -404,6 +447,28 @@ namespace IngameScript
 					if (!otherInv.TransferItemFrom(inv, i)) break;
 				}
 			}
+		}
+		
+		Vector3 GetFillLevel(IMyTerminalBlock block)
+		{
+			IMyInventory inv;
+			if (block.InventoryCount == 2)
+			{
+				inv = block.GetInventory(1);
+			}
+			else
+			{
+				inv = block.GetInventory(0);
+			}
+
+			//Abort if inventory is missing
+			if (inv == null)
+			{
+				BlocksMissingInventory.Add(block.CustomName);
+				return Vector3.Zero;
+			}
+
+			return new Vector3((float)inv.CurrentVolume, (float)inv.MaxVolume, 0);
 		}
 
 		Vector3 SortInventory(IMyTerminalBlock block)
@@ -466,7 +531,14 @@ namespace IngameScript
 			IMyInventory inv;
 			if(block.InventoryCount == 2)
 			{
-				inv = block.GetInventory(1);
+				if(block is IMyAssembler && (block as IMyAssembler).Mode == MyAssemblerMode.Disassembly)
+				{
+					inv = block.GetInventory(0);
+				}
+				else
+				{
+					inv = block.GetInventory(1);
+				}
 			}
 			else
 			{
@@ -578,7 +650,7 @@ namespace IngameScript
 			}
 			return false;
 		}
-
+		
 		void TextOutput()
 		{
 			StringBuilder text = new StringBuilder();
@@ -668,10 +740,11 @@ namespace IngameScript
 			return output;
 		}
 
+		
 
+		
 
-
-		//to this comment.
+		
 		#endregion
 		#region post-script
 	}

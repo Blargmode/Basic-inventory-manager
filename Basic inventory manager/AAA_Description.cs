@@ -7,7 +7,7 @@ namespace IngameScript
 		#region untouched
 /*
 Blargmode's Basic Inventory Manager (BIM)
-Version 0.0.4 (2020-01-21)
+Version 0.0.4 (2020-01-28)
 
 
 // Forewords \\__________________________________________________
@@ -22,6 +22,7 @@ the workshop. I'd like to retain that privilege. Thank you.
 - Works on an 'export unwanted' principle. 
 - Can export to other grids (errr.. breaking feature 2, more on that later..)
 - You need to recompile if you've made any changes, like tagging or building blocks.
+- Can auto-queue components in the assembler (Check Custom Data of the PB).
 
 
 // How it works \\__________________________________________________
@@ -61,7 +62,7 @@ Tag a connector with one of these:
 		
 When that connector is connected to another, it will pull from corresponding containers
 and stuff it in the other connector. If the other ship doesn't have an inventory manager
-emptying the connector, the though luck. I tag receiving connectors with 'BIM:Empty'. 
+emptying the connector, then though luck. I tag receiving connectors with 'BIM:Empty'. 
 		
 An export connector is automatically also a 'BIM:Empty' inventory. This allows for two
 way item transfer. 
