@@ -144,8 +144,13 @@ namespace IngameScript
 
 						//Find and remove potential screen index designation.
 						int indexOfAt = part.IndexOf("@");
+						int displayIndex = 0;
 						if(indexOfAt != -1)
 						{
+							if (!int.TryParse(part.Substring(indexOfAt+1), out displayIndex))
+							{
+								SetupMessages.Add("Did not understand LCD index. Don't understand ' " + part.Substring(indexOfAt + 1) + " '. It should be a number. (@'" + block.CustomName + "')");
+							}
 							part = part.Substring(0, part.Length - (part.Length - indexOfAt));
 						}
 
@@ -200,7 +205,7 @@ namespace IngameScript
 								Empty.Add(block);
 								break;
 
-							
+
 							case "export-ingot":
 							case "export-ingots":
 								if (block is IMyShipConnector)
@@ -269,7 +274,7 @@ namespace IngameScript
 							case "screen":
 							case "show":
 							case "lcd":
-								if (!Display.AddDisplay(block, indexOfAt))
+								if (!Display.AddDisplay(block, displayIndex))
 								{
 									SetupMessages.Add("Block has no accesible LCDs. (@'" + block.CustomName + "')");
 								}

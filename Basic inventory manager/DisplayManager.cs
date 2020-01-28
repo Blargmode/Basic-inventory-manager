@@ -112,9 +112,7 @@ namespace IngameScript
 					surface.WriteText(text);
 				}
 			}
-
-			text.AppendLine("Surfaces: " + surfaces.Count);
-
+			
 			//Add usage instructions before printing to terminal
 			text.AppendLine("\n== Usage ==\nAdd " + Program.TAG + "xxx to a block's name\nwhere xxx is one of the invnetory\ntypes from above. Recompile.");
 			P.Echo(text.ToString());
@@ -122,8 +120,6 @@ namespace IngameScript
 
 		public bool AddDisplay(IMyTerminalBlock block, int displayIndex)
 		{
-			if (displayIndex < 0) displayIndex = 0; //Can't be negative. 
-
 			var surfaceProvider = block as IMyTextSurfaceProvider;
 			if(surfaceProvider != null && surfaceProvider.SurfaceCount > 0)
 			{
