@@ -125,6 +125,7 @@
   <ItemGroup>
     <Compile Include="AAA_Description.cs" />
     <Compile Include="AssemblerManager.cs" />
+    <Compile Include="DisplayManager.cs" />
     <Compile Include="Main.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
