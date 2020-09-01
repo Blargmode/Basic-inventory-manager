@@ -93,7 +93,10 @@ namespace IngameScript
 				}
 				else
 				{
-					TryQueue(item.Key, AssembleConfig[item.Key], MyAssemblerMode.Assembly);
+					if (AssembleConfig[item.Key] > 0)
+					{
+						TryQueue(item.Key, AssembleConfig[item.Key], MyAssemblerMode.Assembly);
+					}
 				}
 			}
 
