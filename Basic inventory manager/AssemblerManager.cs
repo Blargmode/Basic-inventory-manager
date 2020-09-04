@@ -117,7 +117,7 @@ namespace IngameScript
 		{
 			foreach (var assembler in Assemblers)
 			{
-				if (assembler.CanUseBlueprint(item) && assembler.Mode == mode && assembler.IsQueueEmpty)
+				if (assembler.CanUseBlueprint(item) && assembler.Mode == mode && assembler.IsQueueEmpty && !assembler.CooperativeMode) // Are these good conditions?
 				{
 					assembler.AddQueueItem(item, amount);
 					return true;
